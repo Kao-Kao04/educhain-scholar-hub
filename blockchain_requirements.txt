@@ -1,0 +1,7 @@
+web3
+web3[tester]
+eth-account
+eth-keys
+eth-typing
+python-dotenv
+requests

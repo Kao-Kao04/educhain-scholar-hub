@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Shield, Lock, Eye, CheckCircle, AlertTriangle, FileText, Users, DollarSign, Database, Clock, Hash } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 
 const Index = () => {
   const [activeRole, setActiveRole] = useState<"public" | "committee" | "admin">("public");
@@ -408,6 +410,22 @@ const Index = () => {
           </div>
         </section>
       )}
+
+      <section className="py-10 px-6">
+        <div className="container mx-auto max-w-6xl">
+          <div className="border border-primary/20 bg-gradient-to-br from-primary/10 to-background rounded-xl p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold text-foreground">See ScholarshipManager.sol in Action</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Open the demo page to walk through the admin, sponsor, and student flows.
+              </p>
+            </div>
+            <Button asChild>
+              <Link to="/scholarship-demo">Open Demo Page</Link>
+            </Button>
+          </div>
+        </div>
+      </section>
 
       {/* Footer */}
       <footer className="py-8 px-6 border-t border-border bg-card/50">

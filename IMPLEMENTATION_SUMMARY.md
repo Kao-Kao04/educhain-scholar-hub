@@ -15,8 +15,8 @@ A **production-ready, blockchain-based scholarship management system** with:
 ## 📦 What You Have (12 Files + Folders)
 
 ### Core Components (5 files)
-1. **ScholarshipHub.sol** - Smart contract
-   - Student registration with application hash
+1. **ScholarshipManager.sol** - Smart contract
+   - Sponsor and student verification (admin-gated)
    - Oracle-based eligibility verification
    - Scholarship creation and distribution
    - Event logging for transparency
@@ -98,19 +98,19 @@ Blockchain: Public audit trail, no manipulation possible
 # Off-chain check
 is_eligible = (gpa >= 3.0) and (income <= 50000) and documents_verified
 
-# On-chain update (one function call)
-contract.verifyEligibility(student, is_eligible, reason)
+# On-chain update (admin action)
+contract.verifyStudent(student, sponsor, amount, gpa)
 
-# Result: Blockchain records eligibility forever
+# Result: Blockchain records eligibility + sponsor assignment
 ```
 
-### 3. Sybil Resistance
+### 3. Admin-Gated Verification
 ```solidity
-// Each student ID maps to exactly one wallet
-studentIdToWallet[studentId] = walletAddress
-
-// Prevents: Same person registering 10 times
-require(studentIdToWallet[studentId] == address(0))
+// Only admin can verify sponsors and students
+modifier onlyAdmin() {
+   require(msg.sender == admin, "Only the ADMIN can perform this action.");
+   _;
+}
 ```
 
 ### 4. Privacy-First Design
@@ -122,7 +122,7 @@ require(studentIdToWallet[studentId] == address(0))
 
 ✓ ON blockchain (safe):
 - Boolean eligibility (true/false)
-- Application hash (proves integrity)
+- Sponsor assignment and eligibility status
 - Events (transparent history)
 ```
 
@@ -132,10 +132,10 @@ require(studentIdToWallet[studentId] == address(0))
 
 ```
 Student Portal (Frontend)           Blockchain (Sepolia)
-└─ Application Form                 └─ ScholarshipHub Contract
-└─ Status Display                      ├─ registerStudent()
-└─ Claim Button                        ├─ verifyEligibility()
-   │                                   ├─ createScholarship()
+└─ Application Form                 └─ ScholarshipManager Contract
+└─ Status Display                      ├─ verifySponsor()
+└─ Claim Button                        ├─ verifyStudent()
+   │                                   ├─ fundStudent()
    └──→ Flask API (Backend)            └─ claimScholarship()
         ├─ Student endpoints
         ├─ Verification endpoints
@@ -157,7 +157,8 @@ Student Portal (Frontend)           Blockchain (Sepolia)
 ## ✨ Features Implemented
 
 ### Smart Contract Features
-- ✅ Student registration with application hash
+- ✅ Sponsor verification by admin
+- ✅ Student verification by admin (GPA-based)
 - ✅ Multi-admin oracle support
 - ✅ Eligibility verification events
 - ✅ Scholarship creation with funding
@@ -255,9 +256,9 @@ This implementation teaches:
 Every action is logged:
 ```
 [Time] [Event] [Actor] [Data]
-14:32  StudentRegistered  0xAlice  Student ID: 123
-14:35  EligibilityVerified  Oracle  0xAlice eligible (GPA 3.8)
-14:40  ScholarshipClaimed  0xAlice  Scholarship 0, Amount: 0.5 ETH
+14:32  SponsorVerified  0xSponsor  Sponsor ID: 1001
+14:35  EligibilityChanged  0xAlice  Eligible: true, GPA: 380
+14:40  ScholarshipGranted  0xAlice  Sponsor 0x..., Amount: 0.5 ETH
 ```
 
 All visible on Etherscan forever! 🔗

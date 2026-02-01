@@ -46,7 +46,7 @@ def scenario_local_testing():
         print("   → Start local blockchain: npx hardhat node")
         return
 
-    # 3. Get contract ABI (compile ScholarshipHub.sol first)
+    # 3. Get contract ABI (compile ScholarshipManager.sol first)
     print("\n3. Loading contract ABI...")
     print("   ℹ️  Compile your contract:")
     print("      $ npx hardhat compile")
@@ -110,7 +110,7 @@ def scenario_sepolia_deployment():
 
     print(f"\n3. Loading contract at {contract_address[:10]}...")
     # Load ABI from compiled contract
-    # In production, load from artifacts/contracts/ScholarshipHub.sol/ScholarshipHub.json
+    # In production, load from artifacts/contracts/ScholarshipManager.sol/ScholarshipManager.json
 
     print("   ✓ Contract loaded")
 
@@ -124,10 +124,10 @@ def scenario_sepolia_deployment():
 
     print("\n✓ Sepolia deployment ready!")
     print("\nNext steps:")
-    print("  1. Create scholarship: connector.create_scholarship(...)")
-    print("  2. Register students: connector.register_student(...)")
-    print("  3. Run oracle: oracle.batch_verify_students()")
-    print("  4. Students claim: connector.claim_scholarship(...)")
+    print("  1. Verify sponsor: connector.verify_sponsor(...)")
+    print("  2. Verify students: connector.verify_student(...)")
+    print("  3. Sponsor funds student: connector.fund_student(...)")
+    print("  4. Student claims: connector.claim_scholarship()")
 
 
 # ==================== SCENARIO 3: ORACLE VERIFICATION ====================
@@ -167,9 +167,9 @@ def scenario_oracle_verification():
     # 3. On-chain verification (if blockchain available)
     print("\n3. On-chain verification (requires blockchain connection)")
     print("   → To verify on blockchain:")
-    print("      1. Deploy ScholarshipHub.sol")
+    print("      1. Deploy ScholarshipManager.sol")
     print("      2. Update CONTRACT_ADDRESS in .env")
-    print("      3. Set ORACLE_PRIVATE_KEY in .env")
+    print("      3. Set ADMIN private key in .env")
     print("      4. Run: oracle.batch_verify_students()")
 
 
@@ -188,7 +188,7 @@ def scenario_full_workflow():
     # Check prerequisites
     contract_address = os.getenv("CONTRACT_ADDRESS")
     if not contract_address:
-        print("\n✗ Prerequisite: Deploy ScholarshipHub.sol first")
+        print("\n✗ Prerequisite: Deploy ScholarshipManager.sol first")
         print("   Run: npx hardhat run scripts/deploy.js --network sepolia")
         print("   Then update .env with CONTRACT_ADDRESS")
         return
@@ -197,30 +197,23 @@ def scenario_full_workflow():
     print(f"\n✓ Using network: {network}")
     print(f"✓ Contract: {contract_address[:12]}...")
 
-    # Step 1: Create Scholarship
-    print("\n[STEP 1] Creating Scholarship Fund")
+    # Step 1: Verify Sponsor
+    print("\n[STEP 1] Verify Sponsor (Admin)")
     print("-" * 40)
     try:
         connector = create_connector(network, private_key=os.getenv("DEPLOYER_PRIVATE_KEY"))
-        # Load contract ABI first
-        # tx = connector.create_scholarship(
-        #     title="EduChain Ideathon Scholarship 2024",
-        #     beneficiary_count=3,
-        #     description="For outstanding tech innovation students",
-        #     amount_eth=Decimal("0.5")
-        # )
-        # print(f"✓ Scholarship created")
-        # print(f"  TX: {tx['transaction_hash']}")
-        # print(f"  Each student gets: 0.5 / 3 = ~0.167 ETH")
-        print("✓ (Simulated) Scholarship created")
-        print("  Amount: 0.5 ETH for 3 students")
-        print("  Per student: ~0.167 ETH")
+        sponsor_address = os.getenv("OWNER_ADDRESS", "")
+        if sponsor_address:
+            connector.verify_sponsor(sponsor_address)
+            print(f"✓ Sponsor verified: {sponsor_address}")
+        else:
+            print("✓ (Simulated) Sponsor verified")
     except Exception as e:
         print(f"✗ Error: {e}")
         return
 
-    # Step 2: Register & Verify Students
-    print("\n[STEP 2] Register & Verify Students")
+    # Step 2: Verify Students
+    print("\n[STEP 2] Verify Students (Admin)")
     print("-" * 40)
     db = StudentDatabase()
     oracle_logic = EligibilityOracle(None)
@@ -228,44 +221,25 @@ def scenario_full_workflow():
     for i, student in enumerate(db.get_all_students()[:3], 1):
         print(f"\nStudent {i}: {student.name}")
         
-        # Register
-        print(f"  → Registering...")
-        app_data = {
-            "student_id": student.student_id,
-            "name": student.name,
-            "gpa": student.gpa,
-            "essay": "My scholarship essay..."
-        }
-        app_hash = hashlib.sha256(json.dumps(app_data).encode()).hexdigest()
-        # tx = connector.register_student(student.student_id, app_hash)
-        print(f"    ✓ Registered (TX: 0x{app_hash[:8]}...)")
-        
         # Verify
         is_eligible, reason = oracle_logic.check_eligibility(student)
         status = "✓ ELIGIBLE" if is_eligible else "✗ INELIGIBLE"
         print(f"  → Verification: {status}")
         print(f"    {reason}")
 
-    # Step 3: Claim Scholarship
-    print("\n[STEP 3] Claim Scholarship")
+    # Step 3: Sponsor Funds Student
+    print("\n[STEP 3] Sponsor Funds Student")
     print("-" * 40)
-    print("✓ Eligible students can claim:")
-    print("  → connector.claim_scholarship(scholarship_id=0)")
-    print("  → Funds transferred to wallet")
-    print("  → Event logged on blockchain")
+    print("✓ Sponsor funds assigned student:")
+    print("  → connector.fund_student(student_address, amount_wei)")
+    print("  → Funds held until student claims")
 
-    # Step 4: Verify on Etherscan
-    print("\n[STEP 4] Public Verification")
+    # Step 4: Student Claims
+    print("\n[STEP 4] Student Claims Scholarship")
     print("-" * 40)
-    if network == "sepolia":
-        print(f"✓ View on Etherscan:")
-        print(f"  https://sepolia.etherscan.io/address/{contract_address}")
-        print(f"\n✓ View events:")
-        print(f"  - StudentRegistered")
-        print(f"  - EligibilityVerified")
-        print(f"  - ScholarshipClaimed")
-    else:
-        print("✓ (Local blockchain - Etherscan not applicable)")
+    print("✓ Student claims:")
+    print("  → connector.claim_scholarship()")
+    print("  → ScholarshipGranted event emitted")
 
     print("\n✓ FULL WORKFLOW COMPLETE!")
 
@@ -300,15 +274,21 @@ def get_student(student_id):
 
 @app.route("/api/verify", methods=["POST"])
 def verify_student():
-    """Verify student eligibility"""
+    """Admin verifies student"""
     data = request.json
-    result = oracle.verify_student_on_chain(data)
+    # Expected: student_id, sponsor_address, amount_wei
+    student = db.get_student(data["student_id"])
+    result = oracle.verify_student_on_chain(
+        student,
+        sponsor_address=data["sponsor_address"],
+        amount_wei=data["amount_wei"],
+    )
     return jsonify(result)
 
-@app.route("/api/claim/<int:scholarship_id>", methods=["POST"])
-def claim_scholarship(scholarship_id):
+@app.route("/api/claim", methods=["POST"])
+def claim_scholarship():
     """Student claims scholarship"""
-    tx = connector.claim_scholarship(scholarship_id)
+    tx = connector.claim_scholarship()
     return jsonify(tx)
 
 if __name__ == "__main__":

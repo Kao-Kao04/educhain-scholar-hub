@@ -57,8 +57,8 @@ bun run dev
 
 | File | Purpose | Key Function |
 |------|---------|--------------|
-| **ScholarshipHub.sol** | Smart contract | `registerStudent()`, `verifyEligibility()`, `claimScholarship()` |
-| **blockchain_connector.py** | Web3 wrapper | `create_scholarship()`, `register_student()`, `claim_scholarship()` |
+| **ScholarshipManager.sol** | Smart contract | `verifySponsor()`, `verifyStudent()`, `fundStudent()`, `claimScholarship()` |
+| **blockchain_connector.py** | Web3 wrapper | `verify_sponsor()`, `verify_student()`, `fund_student()`, `claim_scholarship()` |
 | **oracle_service.py** | Verification engine | `check_eligibility()`, `verify_student_on_chain()` |
 | **database_models.py** | Student database | Student, Application, Verification records |
 | **example_usage.py** | Code examples | Complete workflow demonstrations |
@@ -123,7 +123,7 @@ Documents: ✓        →      Event logged forever
 
 ✓ DO put on blockchain:
    - Only verification status (true/false)
-   - Application hash (proves data integrity)
+    - Eligibility status (on-chain)
    - Events (audit trail)
 ```
 
@@ -164,7 +164,7 @@ Before running, ensure:
 - [ ] `.env` file created (copy from `.env.example`)
 - [ ] `NETWORK` set (use `sepolia` for demo)
 - [ ] `DEPLOYER_PRIVATE_KEY` filled in (from Metamask)
-- [ ] `ORACLE_PRIVATE_KEY` filled in (new wallet)
+- [ ] `SPONSOR_PRIVATE_KEY` filled in (new wallet)
 - [ ] Testnet ETH in deployer wallet (get from faucet)
 - [ ] `CONTRACT_ADDRESS` filled in (after deployment)
 - [ ] Python packages installed (`pip install -r blockchain_requirements.txt`)
@@ -178,8 +178,8 @@ Before running, ensure:
 |-------|-----|
 | "Connection refused" | Start blockchain: `npx hardhat node` |
 | "Insufficient funds" | Get testnet ETH: https://sepoliafaucet.com |
-| "Only oracle can verify" | Check ORACLE_PRIVATE_KEY in .env |
-| "Student not found" | Register student first: `connector.register_student()` |
+| "Only the ADMIN can perform this action." | Check DEPLOYER_PRIVATE_KEY in .env |
+| "Student not found" | Verify student first: `connector.verify_student()` |
 | "Already claimed" | Each student can only claim once |
 
 ---

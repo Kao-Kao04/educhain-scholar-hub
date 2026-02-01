@@ -9,7 +9,7 @@
 A production-ready prototype with these components:
 
 ### ✅ Smart Contract (Solidity)
-- **File**: `ScholarshipHub.sol`
+- **File**: `ScholarshipManager.sol`
 - **Features**: Student registration, oracle verification, scholarship distribution, event logging
 - **Privacy**: Only boolean eligibility on-chain, all PII off-chain
 - **Security**: Sybil resistance (wallet → student ID mapping), double-claim prevention
@@ -64,7 +64,7 @@ A production-ready prototype with these components:
                                                         │
                                     ┌───────────────────▼────────────┐
                                     │    Smart Contract (Sepolia)    │
-                                    │   ScholarshipHub.sol            │
+                                    │   ScholarshipManager.sol        │
                                     │                                 │
                                     │ - Register students             │
                                     │ - Verify eligibility            │
@@ -89,7 +89,7 @@ cp .env.example .env
 
 # Fill in required variables:
 # - DEPLOYER_PRIVATE_KEY (from Metamask)
-# - ORACLE_PRIVATE_KEY (new wallet)
+# - SPONSOR_PRIVATE_KEY (new wallet)
 # - Get free Sepolia ETH: https://sepoliafaucet.com
 ```
 
@@ -101,7 +101,7 @@ npm install --save-dev hardhat
 npx hardhat init
 
 # Copy contract
-cp ScholarshipHub.sol contracts/
+cp ScholarshipManager.sol contracts/
 
 # Deploy
 npx hardhat run scripts/deploy.js --network sepolia
@@ -135,7 +135,7 @@ bun run dev
 ├─ Install dependencies
 ├─ Create wallets (Metamask)
 ├─ Get testnet ETH (Sepolia faucet)
-├─ Deploy ScholarshipHub.sol
+├─ Deploy ScholarshipManager.sol
 ├─ Update .env with contract address
 └─ Initialize database
 ```
@@ -192,7 +192,7 @@ oracle.verify_student_on_chain(student)
 - Student address (wallet)
 - Student ID (numeric, anonymous)
 - Eligibility status (boolean)
-- Application hash (integrity check)
+- Eligibility status (on-chain)
 - All events (transparent audit trail)
 ```
 
@@ -237,7 +237,7 @@ educhain-scholar-hub/
 │   └── services/
 │       └── blockchain.ts           # API calls
 │
-├── ScholarshipHub.sol              # ★ Smart Contract
+├── ScholarshipManager.sol          # ★ Smart Contract
 ├── blockchain_connector.py         # ★ Web3 Wrapper
 ├── oracle_service.py               # ★ Eligibility Engine
 ├── database_models.py              # ★ Student Data Models
@@ -289,25 +289,27 @@ python example_usage.py
 
 ### Full System Test
 ```bash
-# 1. Create scholarship with 0.5 ETH
-connector.create_scholarship(
-    title="Scholarship",
-    beneficiary_count=3,
-    amount_eth=Decimal("0.5")
-)
+# 1. Verify sponsor (admin)
+connector.verify_sponsor("0xSponsorAddress...")
 
-# 2. Register 3 students
-for student_id in [1, 2, 3]:
-    connector.register_student(student_id, hash)
+# 2. Verify 3 students (admin)
+for student in students:
+   connector.verify_student(
+      student_address=student.wallet_address,
+      assigned_sponsor="0xSponsorAddress...",
+      amount_wei=Web3.to_wei(0.1, "ether"),
+      initial_gpa=350
+   )
 
-# 3. Verify eligibility
-oracle.batch_verify_students([1, 2, 3])
+# 3. Sponsor funds students
+for student in students:
+   connector.fund_student(student.wallet_address, Web3.to_wei(0.1, "ether"))
 
 # 4. Students claim funds
 for i in range(3):
-    connector.claim_scholarship(0)
+   connector.claim_scholarship()
 
-# 5. Check Etherscan - all 7 transactions visible
+# 5. Check Etherscan - all transactions visible
 ```
 
 ---
@@ -417,7 +419,8 @@ function voteOnScholarship(uint256 scholarshipId, bool approve) { }
 ```python
 # Store documents on IPFS, link from blockchain
 ipfs_hash = upload_to_ipfs(student_application)
-register_student(student_id, ipfs_hash)
+# Store hash off-chain and use it during admin verification
+# connector.verify_student(student_address, sponsor_address, amount_wei, initial_gpa)
 ```
 
 ### Zero-Knowledge Proofs
@@ -432,9 +435,9 @@ proof = generate_zk_proof(gpa=3.8, threshold=3.0)
 
 ### Common Issues
 
-**"Only oracle can verify"**
-- Check: `ORACLE_PRIVATE_KEY` in `.env`
-- Verify: Oracle address matches contract's `oracleAddress`
+**"Only the ADMIN can perform this action."**
+- Check: `DEPLOYER_PRIVATE_KEY` in `.env`
+- Verify: Admin address matches contract's `admin`
 
 **"Failed to connect to RPC"**
 - Check: `RPC_URL` is correct

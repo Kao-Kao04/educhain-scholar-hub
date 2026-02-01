@@ -55,12 +55,11 @@
 ## 💻 Source Code Files
 
 ### Smart Contract
-- **ScholarshipHub.sol** (450 lines)
-  - `registerStudent()` - Student registration
-  - `verifyEligibility()` - Oracle verification
-  - `createScholarship()` - Scholarship creation
+  - `verifySponsor()` - Sponsor verification (admin)
+  - `verifyStudent()` - Student verification (admin)
+  - `fundStudent()` - Sponsor funds student
   - `claimScholarship()` - Fund claiming
-  - Events: StudentRegistered, EligibilityVerified, ScholarshipClaimed
+  - Events: ScholarshipGranted, EligibilityChanged, FundsWithdrawn, SponsorVerified
 
 ### Python Backend
 - **blockchain_connector.py** (350 lines)
@@ -127,7 +126,7 @@
 
 ### Smart Contract (Solidity)
 ```
-ScholarshipHub.sol
+ScholarshipManager.sol
 ├── Data Structures
 │   ├── Student (ID, wallet, hash, eligibility)
 │   ├── Scholarship (funds, beneficiaries)
@@ -214,7 +213,7 @@ src/
 
 | File | Type | Lines | Purpose |
 |------|------|-------|---------|
-| ScholarshipHub.sol | Solidity | 450 | Smart contract |
+| ScholarshipManager.sol | Solidity | 450 | Smart contract |
 | blockchain_connector.py | Python | 350 | Web3 wrapper |
 | oracle_service.py | Python | 300 | Verification engine |
 | database_models.py | Python | 250 | ORM models |
@@ -288,7 +287,7 @@ src/
 - [x] Access control (onlyOracle modifier)
 - [x] Sybil resistance (student ID mapping)
 - [x] Privacy preservation (off-chain PII)
-- [x] Data integrity (application hash)
+- [x] Eligibility tracking (on-chain)
 - [x] Immutable history (blockchain)
 - [x] Event logging (audit trail)
 - [x] No centralized gatekeeper
@@ -310,7 +309,7 @@ src/
 
 ```
 deployment & setup
-├── ScholarshipHub.sol (needed for HARDHAT_SETUP.md)
+├── ScholarshipManager.sol (needed for HARDHAT_SETUP.md)
 ├── blockchain_connector.py (uses blockchain_requirements.txt)
 ├── oracle_service.py (imports blockchain_connector)
 ├── database_models.py (SQLAlchemy dependency)
@@ -347,13 +346,13 @@ frontend (src/)
 3. README_BLOCKCHAIN.md
 4. DEPLOYMENT_GUIDE.md
 5. example_usage.py
-6. ScholarshipHub.sol
+6. ScholarshipManager.sol
 7. blockchain_connector.py
 
 ### For Judges/Presentation
 1. QUICK_REFERENCE.md (show architecture)
 2. IMPLEMENTATION_SUMMARY.md (show features)
-3. ScholarshipHub.sol (show security)
+3. ScholarshipManager.sol (show security)
 4. IDEATHON_GUIDE.md (show demo flow)
 
 ---
@@ -375,7 +374,7 @@ frontend (src/)
 **Need to understand security?** → README_BLOCKCHAIN.md
 **Need code examples?** → example_usage.py
 **Need setup verification?** → verify_setup.py
-**Need Solidity details?** → ScholarshipHub.sol
+**Need Solidity details?** → ScholarshipManager.sol
 **Need Python details?** → blockchain_connector.py, oracle_service.py
 **Need ideathon tips?** → IDEATHON_GUIDE.md
 **Need a summary?** → IMPLEMENTATION_SUMMARY.md

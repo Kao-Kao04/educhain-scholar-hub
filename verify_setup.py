@@ -15,7 +15,7 @@ def check_files():
     print("-" * 50)
     
     required_files = {
-        "Smart Contract": "ScholarshipHub.sol",
+        "Smart Contract": "ScholarshipManager.sol",
         "Blockchain Connector": "blockchain_connector.py",
         "Oracle Service": "oracle_service.py",
         "Database Models": "database_models.py",
@@ -110,16 +110,16 @@ def check_solidity_syntax():
     print("-" * 50)
     
     try:
-        with open("ScholarshipHub.sol", "r") as f:
+        with open("ScholarshipManager.sol", "r") as f:
             content = f.read()
         
         checks = {
             "pragma solidity": "Solidity version declaration",
-            "contract ScholarshipHub": "Contract name",
-            "function registerStudent": "Student registration",
-            "function verifyEligibility": "Oracle verification",
-            "function createScholarship": "Scholarship creation",
-            "function claimScholarship": "Scholarship claim",
+            "contract ScholarshipSystem": "Contract name",
+            "function verifySponsor": "Sponsor verification",
+            "function verifyStudent": "Student verification",
+            "function fundStudent": "Sponsor funding",
+            "function claimScholarship": "Student claim",
         }
         
         all_present = True
@@ -132,7 +132,7 @@ def check_solidity_syntax():
         
         return all_present
     except FileNotFoundError:
-        print("✗ ScholarshipHub.sol not found")
+        print("✗ ScholarshipManager.sol not found")
         return False
 
 

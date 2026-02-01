@@ -9,7 +9,7 @@ A **complete, production-ready blockchain scholarship system** with everything n
 ## 📦 Deliverables (Complete Checklist)
 
 ### ✅ Smart Contract (1 file)
-- [x] **ScholarshipHub.sol** (450 lines)
+- [x] **ScholarshipManager.sol** (450 lines)
   - Student registration system
   - Oracle verification pattern
   - Scholarship distribution logic
@@ -121,7 +121,7 @@ A **complete, production-ready blockchain scholarship system** with everything n
 ## 🎯 Key Features Implemented
 
 ### Smart Contract
-✅ Student registration with application hash
+✅ Admin-verified students and sponsors
 ✅ Oracle-based eligibility verification
 ✅ Scholarship creation with funding
 ✅ Student claims processing
@@ -143,7 +143,7 @@ A **complete, production-ready blockchain scholarship system** with everything n
 ✅ Hybrid architecture (sensitive data off-chain)
 ✅ Privacy-first design (only boolean on-chain)
 ✅ Sybil attack prevention
-✅ Data integrity proofs (application hash)
+✅ Eligibility status stored on-chain
 ✅ Immutable audit trail
 ✅ Complete event logging
 
@@ -251,7 +251,7 @@ READY TO DEPLOY!
 
 ### Demo Flow (5 minutes)
 ```
-1. Show ScholarshipHub contract on Etherscan
+1. Show ScholarshipManager contract on Etherscan
 2. Create scholarship with funds
 3. Register student
 4. Oracle verifies eligibility

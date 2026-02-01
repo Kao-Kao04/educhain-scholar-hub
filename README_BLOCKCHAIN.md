@@ -31,7 +31,7 @@ EduChain Scholar Hub solves the **transparency and fraud problems** in tradition
         ▼                  │ - Updates blockchain
 ┌──────────────────────────▼──────────────────────────────────┐
 │                   On-Chain (Solidity)                         │
-│  ScholarshipHub.sol - Smart Contract                          │
+│  ScholarshipManager.sol - Smart Contract                      │
 │  - Scholarship funds (ETH)                                   │
 │  - Verification status (boolean)                             │
 │  - Distribution rules                                        │
@@ -44,7 +44,7 @@ EduChain Scholar Hub solves the **transparency and fraud problems** in tradition
 ```
 1. Student Submits Application
    ├─ Application data → Database
-   └─ Application hash → Blockchain
+   └─ Eligibility status → Blockchain
 
 2. Oracle Verification
    ├─ Check GPA, Income, Documents (off-chain)
@@ -62,14 +62,13 @@ EduChain Scholar Hub solves the **transparency and fraud problems** in tradition
 
 ## 🔧 Core Components
 
-### 1. Solidity Smart Contract (`ScholarshipHub.sol`)
+### 1. Solidity Smart Contract (`ScholarshipManager.sol`)
 
 **Key Functions:**
-- `registerStudent(studentId, applicationHash)` - Student registration
-- `verifyEligibility(address, studentId, isEligible, reason)` - Oracle verification
-- `createScholarship(title, beneficiaryCount, description)` - Create scholarship with funding
-- `claimScholarship(scholarshipId)` - Student claims funds
-- `getStudentEligibilityStatus(address)` - Check if eligible
+- `verifySponsor(address)` - Admin verifies sponsor
+- `verifyStudent(address, assignedSponsor, amount, initialGpa)` - Admin verifies student
+- `fundStudent(address)` - Sponsor funds student (payable)
+- `claimScholarship()` - Student claims funds
 
 **Safety Features:**
 - `onlyOracle` modifier: Only trusted oracle can verify
@@ -87,8 +86,12 @@ oracle = EligibilityOracle(connector, min_gpa=3.0, max_income=50000)
 # Check eligibility
 is_eligible, reason = oracle.check_eligibility(student_data)
 
-# Verify on-chain
-result = oracle.verify_student_on_chain(student_data)
+# Verify on-chain (admin)
+result = oracle.verify_student_on_chain(
+   student_data,
+   sponsor_address="0xSponsorAddress...",
+   amount_wei=Web3.to_wei(0.1, "ether")
+)
 ```
 
 **Features:**
@@ -104,15 +107,22 @@ from blockchain_connector import create_connector
 
 connector = create_connector("sepolia", private_key=os.getenv("DEPLOYER_PRIVATE_KEY"))
 
-# Create scholarship with 10 ETH for 50 students
-connector.create_scholarship(
-    title="Tech Excellence Award",
-    beneficiary_count=50,
-    amount_eth=Decimal("10")
+# Verify sponsor (admin)
+connector.verify_sponsor("0xSponsorAddress...")
+
+# Verify student (admin)
+connector.verify_student(
+   student_address="0xStudentAddress...",
+   assigned_sponsor="0xSponsorAddress...",
+   amount_wei=Web3.to_wei(0.1, "ether"),
+   initial_gpa=350
 )
 
+# Sponsor funds student
+connector.fund_student("0xStudentAddress...", Web3.to_wei(0.1, "ether"))
+
 # Student claims funds
-connector.claim_scholarship(scholarship_id=0)
+connector.claim_scholarship()
 ```
 
 ### 4. Database Models (`database_models.py`)
@@ -145,7 +155,7 @@ cp .env.example .env
 ```bash
 # Use Hardhat (recommended)
 npx hardhat init
-cp ScholarshipHub.sol contracts/
+cp ScholarshipManager.sol contracts/
 npx hardhat run scripts/deploy.js --network sepolia
 
 # Add CONTRACT_ADDRESS to .env
@@ -179,7 +189,7 @@ bun run dev
 
 ## 📊 Workflow Example
 
-### Step 1: Create Scholarship
+### Step 1: Verify Sponsor (Admin)
 
 ```python
 from blockchain_connector import create_connector
@@ -188,16 +198,11 @@ from decimal import Decimal
 connector = create_connector("sepolia", 
     private_key=os.getenv("DEPLOYER_PRIVATE_KEY"))
 
-tx = connector.create_scholarship(
-    title="Ideathon Scholarship",
-    beneficiary_count=10,
-    description="For innovation in tech",
-    amount_eth=Decimal("5")
-)
-# Scholarship 0 created with 5 ETH (0.5 ETH per student)
+tx = connector.verify_sponsor("0xSponsorAddress...")
+print(f"Sponsor verified: {tx['transaction_hash']}")
 ```
 
-### Step 2: Register Student
+### Step 2: Verify Student (Admin)
 
 ```python
 # Student creates wallet (Metamask)
@@ -210,11 +215,13 @@ app_data = {
     "essay": "Why I deserve this scholarship..."
 }
 
-# Create hash of application for integrity
-app_hash = hashlib.sha256(json.dumps(app_data).encode()).hexdigest()
-
-# Register on blockchain
-connector.register_student(student_id=123, application_hash=app_hash)
+# Verify student on blockchain
+connector.verify_student(
+   student_address="0xStudentAddress...",
+   assigned_sponsor="0xSponsorAddress...",
+   amount_wei=Web3.to_wei(0.5, "ether"),
+   initial_gpa=380
+)
 ```
 
 ### Step 3: Oracle Verifies
@@ -231,22 +238,28 @@ student = db.get_student(123)
 # Check eligibility (GPA >= 3.0, Income <= $50k, etc.)
 is_eligible, reason = oracle.check_eligibility(student)
 
-# Update blockchain
-result = oracle.verify_student_on_chain(student)
-# Blockchain now: students[0x123...].isEligible = True
+# Update blockchain (admin)
+result = oracle.verify_student_on_chain(
+   student,
+   sponsor_address="0xSponsorAddress...",
+   amount_wei=Web3.to_wei(0.5, "ether")
+)
 ```
 
-### Step 4: Student Claims Funds
+### Step 4: Sponsor Funds & Student Claims
 
 ```python
+# Sponsor funds student
+connector.fund_student("0xStudentAddress...", Web3.to_wei(0.5, "ether"))
+
 # Student (with wallet) calls claim function
-tx = connector.claim_scholarship(scholarship_id=0)
+tx = connector.claim_scholarship()
 
 # Smart contract:
 # 1. Checks: isEligible == True
 # 2. Checks: hasClaimedScholarship == False
-# 3. Transfers 0.5 ETH to student's wallet
-# 4. Emits ScholarshipClaimed event
+# 3. Transfers scholarship amount to student's wallet
+# 4. Emits ScholarshipGranted event
 ```
 
 ### Step 5: Verify on Etherscan
@@ -278,7 +291,7 @@ View:
 - Student address (wallet)
 - Student ID (anonymous)
 - Eligibility status (boolean)
-- Application hash (proof of integrity)
+- Sponsor assignment and eligibility status
 - Events (transparent history)
 ```
 
@@ -338,7 +351,7 @@ Speed: Mainnet 15s, Polygon 2s
 ## 📚 Key Files
 
 ```
-├── ScholarshipHub.sol           # Smart contract
+├── ScholarshipManager.sol       # Smart contract
 ├── blockchain_connector.py      # Web3 wrapper
 ├── oracle_service.py            # Eligibility verification
 ├── database_models.py           # SQLAlchemy ORM
@@ -391,7 +404,7 @@ python example_usage.py
 
 **Problem**: "Only oracle can verify"
 ```
-→ Set ORACLE_PRIVATE_KEY correctly
+→ Set DEPLOYER_PRIVATE_KEY correctly
 → Oracle address must match contract's oracleAddress
 ```
 
@@ -406,7 +419,7 @@ python example_usage.py
 - [ ] Install Node.js and Python dependencies
 - [ ] Create `.env` file with wallet keys
 - [ ] Get testnet ETH from faucet
-- [ ] Compile ScholarshipHub.sol
+- [ ] Compile ScholarshipManager.sol
 - [ ] Deploy to Sepolia testnet
 - [ ] Update CONTRACT_ADDRESS in .env
 - [ ] Initialize database

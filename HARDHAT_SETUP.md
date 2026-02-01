@@ -9,7 +9,7 @@ const fs = require("fs");
 const path = require("path");
 
 async function main() {
-  console.log("\\n========== ScholarshipHub Deployment ==========\\n");
+  console.log("\\n========== ScholarshipManager Deployment ==========\\n");
 
   // Get deployer account
   const [deployer] = await ethers.getSigners();
@@ -20,14 +20,14 @@ async function main() {
   const network = await ethers.provider.getNetwork();
   console.log("Network:", network.name, "(Chain ID:", network.chainId + ")");
 
-  // Deploy ScholarshipHub
-  console.log("\\nDeploying ScholarshipHub contract...");
+  // Deploy ScholarshipManager
+  console.log("\\nDeploying ScholarshipManager contract...");
   
-  const ScholarshipHub = await ethers.getContractFactory("ScholarshipHub");
-  const scholarship = await ScholarshipHub.deploy();
+  const ScholarshipManager = await ethers.getContractFactory("ScholarshipSystem");
+  const scholarship = await ScholarshipManager.deploy();
   await scholarship.deployed();
 
-  console.log("\\n✓ ScholarshipHub deployed!");
+  console.log("\\n✓ ScholarshipManager deployed!");
   console.log("Contract address:", scholarship.address);
   console.log("Deployer address:", deployer.address);
 

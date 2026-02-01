@@ -101,9 +101,11 @@ class EligibilityOracle:
 
     def __init__(
         self,
-        connector: ScholarshipBlockchainConnector,
+        connector: Optional[ScholarshipBlockchainConnector],
         min_gpa: float = 3.0,
         max_income: float = 50000,
+        default_sponsor_address: Optional[str] = None,
+        default_amount_wei: int = 0,
     ):
         """
         Initialize Oracle.
@@ -117,6 +119,13 @@ class EligibilityOracle:
         self.min_gpa = min_gpa
         self.max_income = max_income
         self.db = StudentDatabase()
+        self.default_sponsor_address = default_sponsor_address
+        self.default_amount_wei = default_amount_wei
+
+    @staticmethod
+    def gpa_to_contract_scale(gpa: float) -> int:
+        """Convert GPA float (e.g., 3.85) to contract scale (e.g., 385)."""
+        return int(round(gpa * 100))
 
     def check_eligibility(self, student: StudentData) -> Tuple[bool, str]:
         """
@@ -150,7 +159,12 @@ class EligibilityOracle:
         # All checks passed
         return True, f"Eligible: GPA {student.gpa}, Income ${student.income_level}"
 
-    def verify_student_on_chain(self, student: StudentData) -> Dict:
+    def verify_student_on_chain(
+        self,
+        student: StudentData,
+        sponsor_address: Optional[str] = None,
+        amount_wei: Optional[int] = None,
+    ) -> Dict:
         """
         Verify a student and update blockchain.
 
@@ -166,14 +180,24 @@ class EligibilityOracle:
             f"Verifying student {student.student_id} ({student.name}): {is_eligible} - {reason}"
         )
 
-        # Call oracle function on smart contract
+        if not self.connector:
+            raise ValueError("Blockchain connector not configured")
+
+        sponsor_address = sponsor_address or self.default_sponsor_address
+        amount_wei = amount_wei if amount_wei is not None else self.default_amount_wei
+
+        if not sponsor_address:
+            raise ValueError("Sponsor address required to verify student")
+        if amount_wei is None or amount_wei <= 0:
+            raise ValueError("Scholarship amount (wei) required to verify student")
+
+        # Admin verification on ScholarshipManager.sol
         try:
-            tx_receipt = self.connector.call_write_function(
-                "verifyEligibility",
-                Web3.to_checksum_address(student.wallet_address),
-                student.student_id,
-                is_eligible,
-                reason,
+            tx_receipt = self.connector.verify_student(
+                student_address=student.wallet_address,
+                assigned_sponsor=sponsor_address,
+                amount_wei=amount_wei,
+                initial_gpa=self.gpa_to_contract_scale(student.gpa),
             )
 
             logger.info(
@@ -221,93 +245,41 @@ class EligibilityOracle:
         logger.info(f"Batch verification complete: {len(results)}/{len(students)} successful")
         return results
 
-    def verify_and_register_student(
-        self, student_id: int, application_data: Dict
-    ) -> Dict:
+    def update_student_gpa_on_chain(self, student: StudentData, new_gpa: float) -> Dict:
         """
-        Register a student and verify eligibility in one transaction flow.
+        Admin action: update student GPA on-chain.
 
         Args:
-            student_id: Student ID
-            application_data: Application submission data
+            student: StudentData
+            new_gpa: GPA as float (e.g., 3.25)
 
         Returns:
-            Registration and verification result
+            Transaction receipt
         """
-        student = self.db.get_student(student_id)
-        if not student:
-            raise ValueError(f"Student {student_id} not found in database")
+        if not self.connector:
+            raise ValueError("Blockchain connector not configured")
 
-        # Create hash of application data for integrity check
-        app_hash = hashlib.sha256(
-            json.dumps(application_data, sort_keys=True).encode()
-        ).hexdigest()
+        return self.connector.update_student_gpa(
+            student.wallet_address, self.gpa_to_contract_scale(new_gpa)
+        )
 
-        logger.info(f"Registering student {student_id} with application hash {app_hash}")
-
-        # Step 1: Register student on-chain
-        try:
-            reg_tx = self.connector.call_write_function(
-                "registerStudent", student_id, app_hash
-            )
-            logger.info(f"✓ Student {student_id} registered on blockchain")
-        except Exception as e:
-            logger.error(f"Registration failed: {e}")
-            raise
-
-        # Step 2: Verify eligibility
-        try:
-            ver_tx = self.verify_student_on_chain(student)
-            logger.info(f"✓ Student {student_id} verified")
-        except Exception as e:
-            logger.error(f"Verification failed: {e}")
-            raise
-
-        return {
-            "student_id": student_id,
-            "registration_tx": reg_tx,
-            "verification_result": ver_tx,
-            "application_hash": app_hash,
-        }
-
-    def get_student_verification_history(self, wallet_address: str) -> List[Dict]:
+    def get_student_on_chain(self, wallet_address: str) -> Optional[Dict]:
         """
-        Fetch student's verification history from blockchain.
+        Fetch student struct from ScholarshipManager.sol mapping.
 
         Args:
             wallet_address: Student's wallet address
 
         Returns:
-            List of verification records
+            Student struct tuple or None
         """
+        if not self.connector:
+            return None
         try:
-            history = self.connector.call_read_function(
-                "getVerificationHistory", Web3.to_checksum_address(wallet_address)
-            )
-            return history
+            return self.connector.get_student(wallet_address)
         except Exception as e:
-            logger.error(f"Failed to fetch verification history: {e}")
-            return []
-
-    def get_student_eligibility_status(self, wallet_address: str) -> bool:
-        """
-        Check if a student is marked as eligible on-chain.
-
-        Args:
-            wallet_address: Student's wallet address
-
-        Returns:
-            True if eligible, False otherwise
-        """
-        try:
-            is_eligible = self.connector.call_read_function(
-                "getStudentEligibilityStatus",
-                Web3.to_checksum_address(wallet_address),
-            )
-            return is_eligible
-        except Exception as e:
-            logger.error(f"Failed to check eligibility status: {e}")
-            return False
+            logger.error(f"Failed to fetch student data: {e}")
+            return None
 
     # ==================== CONFIGURABLE ELIGIBILITY RULES ====================
 
@@ -362,7 +334,7 @@ if __name__ == "__main__":
         print(f"Error: {e}")
 
     print("Setup Instructions:")
-    print("1. Deploy ScholarshipHub.sol to testnet")
+    print("1. Deploy ScholarshipManager.sol to testnet")
     print("2. Set CONTRACT_ADDRESS in .env")
     print("3. Set ORACLE_PRIVATE_KEY in .env (oracle wallet)")
     print("4. Connect oracle to database")

@@ -5,7 +5,7 @@ This guide helps you set up the Python-Solidity blockchain integration for the E
 ## 📋 Files Created
 
 1. **blockchain_connector.py** - Main Python module for blockchain interaction
-2. **ScholarshipHub.sol** - Solidity smart contract for scholarship management
+2. **ScholarshipManager.sol** - Solidity smart contract for scholarship management
 3. **blockchain_requirements.txt** - Python dependencies
 4. **example_usage.py** - Integration examples and usage patterns
 
@@ -49,30 +49,30 @@ NETWORK=localhost
 
 ## 🔗 Blockchain Integration
 
-### ScholarshipHub Smart Contract Features
+### ScholarshipManager Smart Contract Features
 
-The Solidity contract (`ScholarshipHub.sol`) provides:
+The Solidity contract (`ScholarshipManager.sol`) provides:
 
-- **Scholarship Management**: Create and manage scholarships
-- **Fund Distribution**: Distribute funds to eligible students
-- **Balance Tracking**: Monitor scholarship and student balances
-- **Admin Controls**: Multi-admin scholarship management
+- **Admin Controls**: Verify sponsors and students
+- **Fund Distribution**: Sponsors fund students, students claim funds
+- **Balance Tracking**: Monitor student balances
+- **Eligibility Checks**: GPA-based eligibility (>= 3.00)
 - **Event Logging**: Track all blockchain transactions
 
 ### Key Functions
 
 ```solidity
-// Create scholarship
-addScholarship(string title, uint256 amount, uint256 beneficiaryCount, string description)
+// Verify sponsor (admin)
+verifySponsor(address sponsorAddr)
 
-// Distribute funds
-distributeScholarship(uint256 scholarshipId, address student, uint256 amount)
+// Verify student (admin)
+verifyStudent(address studentAddr, address assignedSponsor, uint256 amount, uint256 initialGpa)
 
-// Check balance
-getScholarshipBalance(uint256 scholarshipId)
+// Sponsor funds student
+fundStudent(address studentAddr) payable
 
-// Withdraw funds
-withdrawStudentFunds(uint256 amount)
+// Student claims scholarship
+claimScholarship()
 ```
 
 ### Python Integration
@@ -83,24 +83,26 @@ from blockchain_connector import create_connector
 # Connect to blockchain
 connector = create_connector("localhost")
 
-# Create scholarship
-tx = connector.add_scholarship(
-    title="Tech Excellence Award",
-    amount_wei=1000000000000000000,  # 1 ETH
-    beneficiary_count=10,
-    description="For outstanding tech students"
+# Verify sponsor (admin)
+connector.verify_sponsor("0xSponsorAddress...")
+
+# Verify student (admin)
+connector.verify_student(
+  student_address="0x742d35Cc6634C0532925a3b844Bc2e0e42d79e18",
+  assigned_sponsor="0xSponsorAddress...",
+  amount_wei=100000000000000000,  # 0.1 ETH
+  initial_gpa=350
 )
 
-# Distribute to student
-distribution = connector.distribute_scholarship(
-    student_address="0x742d35Cc6634C0532925a3b844Bc2e0e42d79e18",
-    amount_wei=100000000000000000,  # 0.1 ETH
-    scholarship_id=0
+# Sponsor funds student
+connector.fund_student(
+  student_address="0x742d35Cc6634C0532925a3b844Bc2e0e42d79e18",
+  amount_wei=100000000000000000
 )
 
-# Check balance
-balance = connector.get_scholarship_balance(0)
-print(f"Remaining: {balance['balance_eth']} ETH")
+# Student claims funds
+tx = connector.claim_scholarship()
+print(f"Claimed: {tx['transaction_hash']}")
 ```
 
 ---
@@ -269,7 +271,7 @@ ValueError: Contract not loaded
 
 For issues or questions about integration:
 1. Check the example_usage.py file
-2. Review ScholarshipHub.sol documentation
+2. Review ScholarshipManager.sol documentation
 3. Test with blockchain_connector.py directly
 
 Happy coding! 🚀

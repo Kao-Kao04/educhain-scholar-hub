@@ -213,203 +213,141 @@ class ScholarshipBlockchainConnector:
             "status": receipt.status,  # 1 = success, 0 = failed
         }
 
-    def get_scholarship_balance(self, scholarship_id: int) -> Dict[str, Any]:
+    # ==================== SCHOLARSHIP MANAGER FUNCTIONS ====================
+
+    def verify_sponsor(self, sponsor_address: str) -> Dict[str, Any]:
         """
-        Get balance information for a scholarship.
+        Admin action: verify a sponsor.
 
         Args:
-            scholarship_id: Scholarship ID
+            sponsor_address: Sponsor wallet address
+
+        Returns:
+            Transaction receipt
+        """
+        sponsor_address = Web3.to_checksum_address(sponsor_address)
+        return self.call_write_function("verifySponsor", sponsor_address)
+
+    def verify_student(
+        self,
+        student_address: str,
+        assigned_sponsor: str,
+        amount_wei: int,
+        initial_gpa: int,
+    ) -> Dict[str, Any]:
+        """
+        Admin action: verify a student and assign sponsor.
+
+        Args:
+            student_address: Student wallet address
+            assigned_sponsor: Verified sponsor address
+            amount_wei: Scholarship amount in wei
+            initial_gpa: GPA in contract scale (e.g., 300 = 3.00)
+
+        Returns:
+            Transaction receipt
+        """
+        student_address = Web3.to_checksum_address(student_address)
+        assigned_sponsor = Web3.to_checksum_address(assigned_sponsor)
+        return self.call_write_function(
+            "verifyStudent", student_address, assigned_sponsor, amount_wei, initial_gpa
+        )
+
+    def update_student_gpa(self, student_address: str, new_gpa: int) -> Dict[str, Any]:
+        """
+        Admin action: update student GPA.
+
+        Args:
+            student_address: Student wallet address
+            new_gpa: GPA in contract scale (e.g., 300 = 3.00)
+
+        Returns:
+            Transaction receipt
+        """
+        student_address = Web3.to_checksum_address(student_address)
+        return self.call_write_function("updateStudentGPA", student_address, new_gpa)
+
+    def fund_student(self, student_address: str, amount_wei: int) -> Dict[str, Any]:
+        """
+        Sponsor action: fund assigned student (payable).
+
+        Args:
+            student_address: Student wallet address
+            amount_wei: Amount to fund in wei
+
+        Returns:
+            Transaction receipt
+        """
+        student_address = Web3.to_checksum_address(student_address)
+        return self.call_write_function(
+            "fundStudent", student_address, value=amount_wei
+        )
+
+    def withdraw_sponsor_funds(self, student_address: str) -> Dict[str, Any]:
+        """
+        Sponsor action: withdraw funds for a student (if not claimed).
+
+        Args:
+            student_address: Student wallet address
+
+        Returns:
+            Transaction receipt
+        """
+        student_address = Web3.to_checksum_address(student_address)
+        return self.call_write_function("withdrawSponsorFunds", student_address)
+
+    def claim_scholarship(self) -> Dict[str, Any]:
+        """
+        Student action: claim scholarship funds.
+
+        Returns:
+            Transaction receipt
+        """
+        return self.call_write_function("claimScholarship")
+
+    def get_student(self, student_address: str) -> Dict[str, Any]:
+        """
+        Get student data from public mapping.
+
+        Args:
+            student_address: Student wallet address
+
+        Returns:
+            Student struct tuple
+        """
+        student_address = Web3.to_checksum_address(student_address)
+        return self.call_read_function("students", student_address)
+
+    def get_sponsor(self, sponsor_address: str) -> Dict[str, Any]:
+        """
+        Get sponsor data from public mapping.
+
+        Args:
+            sponsor_address: Sponsor wallet address
+
+        Returns:
+            Sponsor struct tuple
+        """
+        sponsor_address = Web3.to_checksum_address(sponsor_address)
+        return self.call_read_function("sponsors", sponsor_address)
+
+    def get_student_balance(self, student_address: str) -> Dict[str, Any]:
+        """
+        Get student balance from public mapping.
+
+        Args:
+            student_address: Student wallet address
 
         Returns:
             Balance information
         """
-        balance = self.call_read_function("getScholarshipBalance", scholarship_id)
+        student_address = Web3.to_checksum_address(student_address)
+        balance = self.call_read_function("studentBalances", student_address)
         return {
-            "scholarship_id": scholarship_id,
+            "student": student_address,
             "balance_wei": balance,
             "balance_eth": Web3.from_wei(balance, "ether"),
         }
-
-    def distribute_scholarship(
-        self, student_address: str, amount_wei: int, scholarship_id: int
-    ) -> Dict[str, Any]:
-        """
-        Distribute funds to a student.
-
-        Args:
-            student_address: Student's wallet address
-            amount_wei: Amount in wei
-            scholarship_id: Scholarship ID
-
-        Returns:
-            Transaction receipt
-        """
-        student_address = Web3.to_checksum_address(student_address)
-        return self.call_write_function(
-            "distributeScholarship", student_address, amount_wei, scholarship_id
-        )
-
-    def add_scholarship(
-        self,
-        title: str,
-        amount_wei: int,
-        beneficiary_count: int,
-        description: str = "",
-    ) -> Dict[str, Any]:
-        """
-        Create a new scholarship.
-
-        Args:
-            title: Scholarship title
-            amount_wei: Total amount in wei
-            beneficiary_count: Expected number of beneficiaries
-            description: Scholarship description
-
-        Returns:
-            Transaction receipt
-        """
-        return self.call_write_function(
-            "addScholarship", title, amount_wei, beneficiary_count, description
-        )
-
-    def withdraw_funds(self, amount_wei: int) -> Dict[str, Any]:
-        """
-        Withdraw unclaimed funds from contract (owner only).
-
-        Args:
-            amount_wei: Amount to withdraw in wei
-
-        Returns:
-            Transaction receipt
-        """
-        return self.call_write_function("withdrawUnclaimedFunds", amount_wei)
-
-    # ==================== ORACLE FUNCTIONS ====================
-
-    def register_student(self, student_id: int, application_hash: str) -> Dict[str, Any]:
-        """
-        Register a student with application hash (Sybil resistance).
-
-        Args:
-            student_id: Unique university student ID
-            application_hash: IPFS hash or keccak256 of application data
-
-        Returns:
-            Transaction receipt
-        """
-        return self.call_write_function("registerStudent", student_id, application_hash)
-
-    def verify_eligibility(
-        self,
-        student_address: str,
-        student_id: int,
-        is_eligible: bool,
-        reason: str,
-    ) -> Dict[str, Any]:
-        """
-        Oracle function: Verify student eligibility on-chain.
-
-        Args:
-            student_address: Student's wallet address
-            student_id: Student's university ID
-            is_eligible: Eligibility status
-            reason: Eligibility reason (e.g., "GPA: 3.8")
-
-        Returns:
-            Transaction receipt
-        """
-        student_address = Web3.to_checksum_address(student_address)
-        return self.call_write_function(
-            "verifyEligibility", student_address, student_id, is_eligible, reason
-        )
-
-    def create_scholarship(
-        self,
-        title: str,
-        beneficiary_count: int,
-        description: str = "",
-        amount_eth: Decimal = Decimal("1"),
-    ) -> Dict[str, Any]:
-        """
-        Create a new scholarship with funding.
-
-        Args:
-            title: Scholarship title
-            beneficiary_count: Number of eligible beneficiaries
-            description: Scholarship description
-            amount_eth: Total amount in ETH (default: 1 ETH)
-
-        Returns:
-            Transaction receipt
-        """
-        amount_wei = Web3.to_wei(amount_eth, "ether")
-        return self.call_write_function(
-            "createScholarship", title, beneficiary_count, description, value=amount_wei
-        )
-
-    def claim_scholarship(self, scholarship_id: int) -> Dict[str, Any]:
-        """
-        Claim scholarship funds (student only, must be eligible).
-
-        Args:
-            scholarship_id: ID of scholarship to claim
-
-        Returns:
-            Transaction receipt
-        """
-        return self.call_write_function("claimScholarship", scholarship_id)
-
-    def get_student_info(self, student_address: str) -> Dict[str, Any]:
-        """
-        Get student information from contract.
-
-        Args:
-            student_address: Student's wallet address
-
-        Returns:
-            Student data
-        """
-        student_address = Web3.to_checksum_address(student_address)
-        return self.call_read_function("getStudent", student_address)
-
-    def get_student_eligibility(self, student_address: str) -> bool:
-        """
-        Check if student is marked as eligible.
-
-        Args:
-            student_address: Student's wallet address
-
-        Returns:
-            True if eligible, False otherwise
-        """
-        student_address = Web3.to_checksum_address(student_address)
-        return self.call_read_function("getStudentEligibilityStatus", student_address)
-
-    def get_verification_history(self, student_address: str) -> List[Dict]:
-        """
-        Get student's verification history.
-
-        Args:
-            student_address: Student's wallet address
-
-        Returns:
-            List of verification records
-        """
-        student_address = Web3.to_checksum_address(student_address)
-        return self.call_read_function("getVerificationHistory", student_address)
-
-    def set_oracle_address(self, oracle_address: str) -> Dict[str, Any]:
-        """
-        Update oracle address (owner only).
-
-        Args:
-            oracle_address: New oracle wallet address
-
-        Returns:
-            Transaction receipt
-        """
-        oracle_address = Web3.to_checksum_address(oracle_address)
-        return self.call_write_function("setOracleAddress", oracle_address)
 
     def get_account_balance(self, address: Optional[str] = None) -> Dict[str, Any]:
         """

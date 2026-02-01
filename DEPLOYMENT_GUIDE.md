@@ -1,6 +1,6 @@
 # EduChain Scholar Hub - Deployment Guide
 
-Complete guide for deploying the ScholarshipHub smart contract to testnet and running the oracle service for an ideathon prototype.
+Complete guide for deploying the ScholarshipManager smart contract to testnet and running the oracle service for an ideathon prototype.
 
 ## 🎯 Architecture Overview
 
@@ -77,11 +77,11 @@ CHAIN_ID=11155111
 
 # Wallet Configuration (Create a new testnet wallet!)
 DEPLOYER_PRIVATE_KEY=your_sepolia_testnet_private_key
-ORACLE_PRIVATE_KEY=your_oracle_wallet_private_key
+SPONSOR_PRIVATE_KEY=your_sponsor_wallet_private_key
 OWNER_ADDRESS=0x...  # Owner wallet address
 
 # Contract Addresses (Fill after deployment)
-CONTRACT_ADDRESS=0x...  # Deployed ScholarshipHub address
+CONTRACT_ADDRESS=0x...  # Deployed ScholarshipManager address
 
 # Database
 DATABASE_URL=sqlite:///scholarship_hub.db
@@ -125,11 +125,11 @@ npx hardhat init
 **2. Create deployment script (`scripts/deploy.js`):**
 ```javascript
 async function main() {
-  const ScholarshipHub = await ethers.getContractFactory("ScholarshipHub");
-  const scholarship = await ScholarshipHub.deploy();
+    const ScholarshipManager = await ethers.getContractFactory("ScholarshipSystem");
+    const scholarship = await ScholarshipManager.deploy();
   await scholarship.deployed();
   
-  console.log("✓ ScholarshipHub deployed to:", scholarship.address);
+    console.log("✓ ScholarshipManager deployed to:", scholarship.address);
   console.log("\nAdd this to .env:");
   console.log(`CONTRACT_ADDRESS=${scholarship.address}`);
 }
@@ -144,8 +144,8 @@ main()
 
 **3. Deploy:**
 ```bash
-# Copy ScholarshipHub.sol to contracts/
-cp ScholarshipHub.sol contracts/
+# Copy ScholarshipManager.sol to contracts/
+cp ScholarshipManager.sol contracts/
 
 # Deploy to Sepolia
 npx hardhat run scripts/deploy.js --network sepolia
@@ -159,7 +159,7 @@ npx hardhat verify --network sepolia <CONTRACT_ADDRESS>
 ### Option B: Using Remix (Web Browser)
 
 1. Visit https://remix.ethereum.org
-2. Create new file: `ScholarshipHub.sol`
+2. Create new file: `ScholarshipManager.sol`
 3. Copy contract code from your file
 4. Click "Compile" (Solidity Compiler)
 5. Click "Deploy" and select "Injected Provider (MetaMask)"
@@ -192,10 +192,10 @@ import os
 # Load environment
 load_dotenv()
 
-# Initialize blockchain connector
+# Initialize blockchain connector (admin)
 connector = create_connector(
     network=os.getenv("NETWORK", "localhost"),
-    private_key=os.getenv("ORACLE_PRIVATE_KEY")
+    private_key=os.getenv("DEPLOYER_PRIVATE_KEY")
 )
 
 # Load contract
@@ -231,11 +231,11 @@ for result in results:
 
 ---
 
-## 🎓 Step 5: Create Scholarship & Fund It
+## 🎓 Step 5: Verify Sponsor & Students
 
 ```python
 from blockchain_connector import create_connector
-from decimal import Decimal
+from web3 import Web3
 
 connector = create_connector("sepolia", private_key=os.getenv("DEPLOYER_PRIVATE_KEY"))
 connector.load_contract(
@@ -243,42 +243,36 @@ connector.load_contract(
     contract_abi  # Load from compiled contract
 )
 
-# Create scholarship with 10 ETH for 50 students
-# Each student gets 0.2 ETH if eligible
-tx = connector.create_scholarship(
-    title="Tech Excellence Scholarship 2024",
-    beneficiary_count=50,
-    description="For outstanding computer science students",
-    amount_eth=Decimal("10")
-)
-
-print(f"✓ Scholarship created!")
+# Verify sponsor (admin)
+tx = connector.verify_sponsor("0xSponsorAddress...")
+print(f"✓ Sponsor verified!")
 print(f"  TX: {tx['transaction_hash']}")
-print(f"  Scholarship ID: 0")
+
+# Verify student (admin)
+tx = connector.verify_student(
+    student_address="0xStudentAddress...",
+    assigned_sponsor="0xSponsorAddress...",
+    amount_wei=Web3.to_wei(0.1, "ether"),
+    initial_gpa=350
+)
+print(f"✓ Student verified!")
+print(f"  TX: {tx['transaction_hash']}")
 ```
 
 ---
 
-## ✅ Step 6: Students Claim Scholarships
+## ✅ Step 6: Sponsor Funds & Student Claims
 
 **Student registration and claiming flow:**
 
 ```python
-# 1. Student registers with application
+# 1. Sponsor funds student
 student_address = "0x742d35Cc6634C0532925a3b844Bc2e0e42d79e18"
-student_id = 1
+connector.fund_student(student_address, Web3.to_wei(0.1, "ether"))
+print(f"✓ Student funded")
 
-connector.register_student(
-    student_id=student_id,
-    application_hash="QmXxxx..."  # IPFS hash of their application
-)
-print(f"✓ Student registered")
-
-# 2. Oracle verifies (runs separately)
-# oracle.verify_student_on_chain(student_data)
-
-# 3. Student claims funds (when marked eligible)
-tx = connector.claim_scholarship(scholarship_id=0)
+# 2. Student claims funds
+tx = connector.claim_scholarship()
 print(f"✓ Claimed! TX: {tx['transaction_hash']}")
 ```
 
@@ -317,7 +311,7 @@ def get_student(student_id):
         "student_id": student.student_id,
         "name": student.get_full_name(),
         "gpa": student.gpa,
-        "eligibility": oracle.get_student_eligibility_status(student.wallet_address)
+        "eligibility": connector.get_student(student.wallet_address)[2]  # isEligible
     }
 
 @app.route("/api/verify", methods=["POST"])
@@ -382,42 +376,41 @@ def main():
     print("   ✓ Connected to blockchain")
     print(f"   ✓ Chain ID: {connector.w3.eth.chain_id}")
     
-    # 2. Create scholarship
-    print("\n2️⃣  Creating scholarship...")
-    tx = connector.create_scholarship(
-        title="Ideathon Proof of Concept",
-        beneficiary_count=3,
-        description="For ideathon participants",
-        amount_eth=0.5
-    )
-    print(f"   ✓ Scholarship created")
+    # 2. Verify sponsor
+    print("\n2️⃣  Verifying sponsor...")
+    tx = connector.verify_sponsor("0xSponsorAddress...")
+    print(f"   ✓ Sponsor verified")
     print(f"   ✓ TX: {tx['transaction_hash']}")
     
-    # 3. Register students
-    print("\n3️⃣  Registering students...")
+    # 3. Verify students
+    print("\n3️⃣  Verifying students...")
     for student in db.get_all_students()[:3]:
         try:
-            connector.register_student(
-                student_id=student.student_id,
-                application_hash="QmExample123456"
+            connector.verify_student(
+                student_address=student.wallet_address,
+                assigned_sponsor="0xSponsorAddress...",
+                amount_wei=Web3.to_wei(0.1, "ether"),
+                initial_gpa=350
             )
-            print(f"   ✓ Registered: {student.name}")
+            print(f"   ✓ Verified: {student.name}")
         except Exception as e:
-            print(f"   ✗ Registration failed: {e}")
+            print(f"   ✗ Verification failed: {e}")
     
-    # 4. Verify eligibility
-    print("\n4️⃣  Verifying eligibility...")
-    results = oracle.batch_verify_students([1, 2, 3])
-    for result in results:
-        status = "✓" if result["is_eligible"] else "✗"
-        print(f"   {status} Student {result['student_id']}: {result['reason']}")
+    # 4. Sponsor funds students
+    print("\n4️⃣  Funding students...")
+    for student in db.get_all_students()[:3]:
+        try:
+            connector.fund_student(student.wallet_address, Web3.to_wei(0.1, "ether"))
+            print(f"   ✓ Funded: {student.name}")
+        except Exception as e:
+            print(f"   ✗ Funding failed: {e}")
     
     # 5. Test claim
     print("\n5️⃣  Testing scholarship claim...")
     eligible_student = next((s for s in db.get_all_students() if s.student_id == 1), None)
     if eligible_student:
         try:
-            tx = connector.claim_scholarship(0)
+            tx = connector.claim_scholarship()
             print(f"   ✓ Claimed scholarship")
             print(f"   ✓ TX: {tx['transaction_hash']}")
         except Exception as e:
@@ -441,17 +434,13 @@ python test_full_flow.py
 ### Check Contract Status
 
 ```python
-# Get total scholarships
-total = connector.call_read_function("getTotalScholarships")
-print(f"Total scholarships: {total}")
+# Get student details
+student = connector.call_read_function("students", "0xStudentAddress...")
+print(f"Student: {student}")
 
-# Get contract balance
-balance = connector.call_read_function("getContractBalance")
-print(f"Contract balance: {Web3.from_wei(balance, 'ether')} ETH")
-
-# Get scholarship details
-scholarship = connector.call_read_function("getScholarship", 0)
-print(f"Scholarship 0: {scholarship}")
+# Get student balance
+balance = connector.call_read_function("studentBalances", "0xStudentAddress...")
+print(f"Student balance: {Web3.from_wei(balance, 'ether')} ETH")
 ```
 
 ### View on Etherscan
@@ -474,20 +463,19 @@ export async function getStudentInfo(studentId: number) {
   return res.json();
 }
 
-export async function verifyStudent(studentId: number) {
+export async function verifyStudent(studentId: number, sponsorAddress: string, amountWei: string) {
   const res = await fetch(`${API_URL}/api/verify`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ student_id: studentId }),
+        body: JSON.stringify({ student_id: studentId, sponsor_address: sponsorAddress, amount_wei: amountWei }),
   });
   return res.json();
 }
 
-export async function claimScholarship(scholarshipId: number, wallet: string) {
-  const res = await fetch(`${API_URL}/api/claim/${scholarshipId}`, {
+export async function claimScholarship() {
+    const res = await fetch(`${API_URL}/api/claim`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ wallet_address: wallet }),
   });
   return res.json();
 }
@@ -513,13 +501,12 @@ echo $NETWORK  # Should be 'sepolia'
 # Wait 1-2 minutes before retrying
 ```
 
-**Problem: "verifyEligibility only callable by oracle"**
+**Problem: "Only the ADMIN can perform this action."**
 ```python
-# Make sure ORACLE_PRIVATE_KEY is set
-# And oracle address matches contract's oracleAddress
+# Make sure DEPLOYER_PRIVATE_KEY is set (admin)
 
-connector = create_connector("sepolia", private_key=os.getenv("ORACLE_PRIVATE_KEY"))
-print(connector.account.address)  # Should match contract oracle
+connector = create_connector("sepolia", private_key=os.getenv("DEPLOYER_PRIVATE_KEY"))
+print(connector.account.address)  # Should match contract admin
 ```
 
 ---
@@ -534,7 +521,7 @@ print(connector.account.address)  # Should match contract oracle
 - [ ] Database initialized with sample students
 - [ ] Backend API running on port 5000
 - [ ] Frontend connects to API
-- [ ] Test flow: Register → Verify → Claim working
+- [ ] Test flow: Verify Sponsor → Verify Student → Fund → Claim working
 - [ ] Etherscan verification of contract
 - [ ] README with setup instructions
 
